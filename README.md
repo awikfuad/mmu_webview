@@ -40,8 +40,10 @@ flutter pub get
 flutter build apk --release --dart-define=APP_URL=http://192.168.1.50:5173
 ```
 
-- `APP_URL` default `http://10.0.2.2:5173` (emulator Android). Untuk TV fisik wajib
-  `--dart-define=APP_URL=http://<IP_LAN_HOST>:5173` atau URL deployment.
+- `APP_URL` default `https://mmu-new-frontend.vercel.app/` (deployment web MMU).
+  Tanpa custom, APK kiosk langsung menampilkan dashboard harian dari URL tersebut.
+  Untuk server LAN/development tetap bisa:
+  `--dart-define=APP_URL=http://<IP_LAN_HOST>:5173`.
 - Karena memakai HTTP LAN, manifest sudah menyetel `android:usesCleartextTraffic="true"`.
 - Release pakai `signingConfigs.debug` (kiosk internal). Untuk produksi ganti ke keystore
   sendiri di `android/app/build.gradle` `buildTypes.release`.

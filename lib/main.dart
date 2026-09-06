@@ -5,12 +5,12 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 /// Alamat aplikasi web MMU (kiosk Dashboard Harian / frontend).
 ///
-/// Ganti saat build dengan alamat yang bisa dijangkau TV melalui LAN/deployment:
+/// Ganti saat build bila perlu menunjuk ke server lain (LAN/deployment):
 ///   flutter run --dart-define=APP_URL=http://192.168.1.50:5173
-///   flutter build apk --release --dart-define=APP_URL=https://apps.mmu44.example
+///   flutter build apk --release --dart-define=APP_URL=http://192.168.1.50:5173
 const String appUrl = String.fromEnvironment(
   'APP_URL',
-  defaultValue: 'http://10.0.2.2:5173',
+  defaultValue: 'https://mmu-new-frontend.vercel.app/',
 );
 
 void main() {

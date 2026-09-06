@@ -29,7 +29,7 @@ jobs:
         run: flutter analyze
 
       - name: Build release APK
-        run: flutter build apk --release --dart-define=APP_URL=${{ vars.APP_URL != '' && vars.APP_URL || 'http://10.0.2.2:5173' }}
+        run: flutter build apk --release --dart-define=APP_URL=${{ vars.APP_URL != '' && vars.APP_URL || 'https://mmu-new-frontend.vercel.app/' }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
