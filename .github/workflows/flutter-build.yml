@@ -1,0 +1,39 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Flutter APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.38.9
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build release APK
+        run: flutter build apk --release --dart-define=APP_URL=${{ vars.APP_URL != '' && vars.APP_URL || 'http://10.0.2.2:5173' }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mmu-tv-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
