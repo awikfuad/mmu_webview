@@ -1,13 +1,9 @@
 import 'dart:async';
 
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-/// Alamat aplikasi web MMU (kiosk Dashboard Harian / frontend).
-///
-/// Ganti saat build bila perlu menunjuk ke server lain (LAN/deployment):
-///   flutter run --dart-define=APP_URL=http://192.168.1.50:5173
-///   flutter build apk --release --dart-define=APP_URL=http://192.168.1.50:5173
 const String appUrl = String.fromEnvironment(
   'APP_URL',
   defaultValue: 'https://mmu-new-frontend.vercel.app/',
@@ -42,6 +38,7 @@ class KioskWebView extends StatefulWidget {
 class _KioskWebViewState extends State<KioskWebView> {
   late final WebViewController _controller;
   bool _loading = true;
+  int _loadingProgress = 0; // Menyimpan status persentase loading (0-100)
   String? _error;
   Timer? _retryTimer;
 
@@ -54,22 +51,34 @@ class _KioskWebViewState extends State<KioskWebView> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onProgress: (progress) {
-            if (mounted) setState(() => _loading = progress < 100);
+            if (mounted && _error == null) {
+              setState(() {
+                _loadingProgress = progress;
+                _loading = progress < 100;
+              });
+            }
           },
           onPageStarted: (url) {
             if (mounted) {
               setState(() {
                 _loading = true;
+                _loadingProgress = 0;
                 _error = null;
               });
             }
           },
           onPageFinished: (url) {
-            if (mounted) setState(() => _loading = false);
+            if (mounted) {
+              setState(() {
+                _loading = false;
+                _loadingProgress = 100;
+              });
+            }
           },
           onWebResourceError: (error) {
-            if (error.isForMainFrame != true) return;
-            _retryTimer?.cancel();
+            final isMainFrame = error.isForMainFrame ?? true;
+            if (!isMainFrame) return;
+
             if (mounted) {
               setState(() {
                 _error = error.description.isEmpty
@@ -86,18 +95,21 @@ class _KioskWebViewState extends State<KioskWebView> {
   }
 
   void _load() {
+    _retryTimer?.cancel();
+    if (mounted) {
+      setState(() {
+        _error = null;
+        _loading = true;
+        _loadingProgress = 0;
+      });
+    }
     _controller.loadRequest(Uri.parse(appUrl));
   }
 
-  /// Coba muat ulang otomatis supaya kiosk pulih sendiri saat server nyala kembali.
   void _scheduleRetry() {
     _retryTimer?.cancel();
     _retryTimer = Timer(const Duration(seconds: 10), () {
       if (!mounted) return;
-      setState(() {
-        _error = null;
-        _loading = true;
-      });
       _load();
     });
   }
@@ -115,13 +127,85 @@ class _KioskWebViewState extends State<KioskWebView> {
       body: Stack(
         children: [
           WebViewWidget(controller: _controller),
-          if (_loading)
-            const Align(
+          
+          // Progress Bar tipis di bagian paling atas
+          if (_loading && _error == null)
+            Align(
               alignment: Alignment.topCenter,
-              child: LinearProgressIndicator(minHeight: 3),
+              child: LinearProgressIndicator(
+                value: _loadingProgress / 100,
+                minHeight: 4,
+                backgroundColor: Colors.transparent,
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.tealAccent),
+              ),
             ),
+
+          // Tampilan Informasi Loading & Persentase di tengah layar
+          if (_loading && _error == null)
+            _LoadingOverlay(progress: _loadingProgress),
+
           if (_error != null) _ErrorOverlay(error: _error!, onRetry: _load),
+
+          // Tombol Settings untuk akses tanpa remote (klik mouse)
+          Align(
+            alignment: Alignment.bottomRight,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: IconButton.filledTonal(
+                  tooltip: 'Buka Pengaturan',
+                  onPressed: _openSettings,
+                  icon: const Icon(Icons.settings),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black54,
+                    foregroundColor: Colors.white,
+                    iconSize: 28,
+                    padding: const EdgeInsets.all(12),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+
+  void _openSettings() {
+    const intent = AndroidIntent(
+      action: 'android.settings.SETTINGS',
+    );
+    intent.launch();
+  }
+}
+
+/// Widget Overlay untuk menampilkan animasi Putaran (Spinner) dan Persentase Loading
+class _LoadingOverlay extends StatelessWidget {
+  const _LoadingOverlay({required this.progress});
+
+  final int progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF00352C), // Background solid agar web yang setengah muat tidak terlihat berantakan
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.tealAccent),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Memuat MMU TV... $progress%',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -135,35 +219,38 @@ class _ErrorOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.tv_off, size: 72, color: Colors.white54),
-          const SizedBox(height: 16),
-          Text(
-            'Tidak dapat terhubung ke server MMU',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              error,
+    return Container(
+      color: const Color(0xFF00352C),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.tv_off, size: 72, color: Colors.white54),
+            const SizedBox(height: 16),
+            Text(
+              'Tidak dapat terhubung ke server MMU',
               textAlign: TextAlign.center,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodySmall,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Coba Lagi'),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Text(
+                error,
+                textAlign: TextAlign.center,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Coba Lagi'),
+            ),
+          ],
+        ),
       ),
     );
   }
